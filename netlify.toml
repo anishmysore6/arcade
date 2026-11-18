@@ -1,0 +1,6 @@
+# Arcade Lab is a single pygame file (main.py). pygbag packages it into a
+# web page that runs Python in the browser. pygbag expects the game in its own
+# folder as main.py, and writes the finished site to <folder>/build/web.
+[build]
+  command = "rm -rf arcade_web && mkdir arcade_web && cp main.py arcade_web/main.py && pip install pygbag==0.9.3 && python -m pygbag --build arcade_web"
+  publish = "arcade_web/build/web"
