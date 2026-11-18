@@ -174,6 +174,7 @@ class SoundBank:
         self.enabled = True   # M toggles this, in every game
         self.ready = False
         self.sounds = {}
+        self.pending = []
         try:
             if not pygame.mixer.get_init():
                 pygame.mixer.init(22050, -16, 1, 512)
@@ -181,11 +182,30 @@ class SoundBank:
             self.bits = abs(size)
             if self.bits not in (16, 32):
                 raise RuntimeError("unusual sound format %s" % size)
-            for name, (wave, volume, notes) in SOUND_RECIPES.items():
-                self.sounds[name] = self.make(wave, volume, notes)
+            # Sounds are built a few at a time by build_some(), called once per frame,
+            # so the first picture shows right away (slow in the browser otherwise).
+            self.pending = list(SOUND_RECIPES)
             self.ready = True
         except Exception as error:   # no sound card, or a browser that blocks it
             print("Sound is off:", error)
+
+    def build(self, name):
+        wave, volume, notes = SOUND_RECIPES[name]
+        self.sounds[name] = self.make(wave, volume, notes)
+
+    def build_some(self, count=1):
+        """Build the next few sounds that are not made yet."""
+        if not self.ready:
+            return
+        try:
+            while self.pending and count > 0:
+                name = self.pending.pop(0)
+                if name not in self.sounds:
+                    self.build(name)
+                count -= 1
+        except Exception as error:
+            print("Sound is off:", error)
+            self.ready = False
 
     def make(self, wave, volume, notes):
         """Build one sound from notes and return a pygame Sound."""
@@ -223,8 +243,16 @@ class SoundBank:
         return pygame.mixer.Sound(buffer=samples.tobytes())
 
     def play(self, name):
-        if self.ready and self.enabled and name in self.sounds:
-            self.sounds[name].play()
+        if not (self.ready and self.enabled and name in SOUND_RECIPES):
+            return
+        if name not in self.sounds:      # asked for before build_some() got to it
+            try:
+                self.build(name)
+            except Exception as error:
+                print("Sound is off:", error)
+                self.ready = False
+                return
+        self.sounds[name].play()
 
     def toggle(self):
         self.enabled = not self.enabled
@@ -2392,6 +2420,7 @@ class ArcadeApp:
             self.handle_event(event)
         self.update(dt)
         self.draw()
+        self.sounds.build_some()
 
 
 async def main():
